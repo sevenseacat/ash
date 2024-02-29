@@ -46,13 +46,28 @@ defmodule Ash.Test.Actions.BulkCreateTest do
     end
   end
 
+  defmodule PubSub do
+    def broadcast(topic, event, notification) do
+      send(
+        Application.get_env(__MODULE__, :notifier_test_pid),
+        {:broadcast, topic, event, notification}
+      )
+    end
+  end
+
   defmodule Post do
     @moduledoc false
     use Ash.Resource,
       data_layer: Ash.DataLayer.Ets,
-      authorizers: [Ash.Policy.Authorizer]
+      authorizers: [Ash.Policy.Authorizer],
+      notifiers: [Ash.Notifier.PubSub]
 
     alias Ash.Test.Actions.BulkCreateTest.Org
+
+    pub_sub do
+      module PubSub
+      publish :create_with_pubsub, ["test"]
+    end
 
     ets do
       private? true
@@ -106,6 +121,9 @@ defmodule Ash.Test.Actions.BulkCreateTest do
         argument :authorize?, :boolean, allow_nil?: false
 
         change set_context(%{authorize?: arg(:authorize?)})
+      end
+
+      create :create_with_pubsub do
       end
     end
 
@@ -418,6 +436,26 @@ defmodule Ash.Test.Actions.BulkCreateTest do
                return_records?: true,
                sorted?: true
              )
+  end
+
+  test "sends pubsub notifications" do
+    Application.put_env(PubSub, :notifier_test_pid, self())
+
+    org =
+      Org
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Api.create!()
+
+    # PubSub is hooked up correctly
+    Post
+    |> Ash.Changeset.for_create(:create_with_pubsub, %{title: "title1", org_id: org.id})
+    |> Api.create!(tenant: org.id)
+
+    assert_receive {:broadcast, "test", "create_with_pubsub", %Ash.Notifier.Notification{}}
+
+    # But not with bulk create?
+    Api.bulk_create!([%{title: "title2"}], Post, :create_with_pubsub, tenant: org.id)
+    assert_receive {:broadcast, "test", "create_with_pubsub", %Ash.Notifier.Notification{}}
   end
 
   describe "authorization" do
