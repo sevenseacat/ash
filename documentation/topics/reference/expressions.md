@@ -150,11 +150,11 @@ The filter refers to a _single post/comment/tag combination_. So in english, thi
 
 ```elixir
 def has_comment_with_more_points_than(query, score) do
-  Ash.Query.filter(Post, comments.points > 10)
+  Ash.Query.filter(query, comments.points > 10)
 end
 
 def has_comment_tagged(query, tag) do
-  Ash.Query.filter(Post, comments.tag.name == ^tag)
+  Ash.Query.filter(query, comments.tag.name == ^tag)
 end
 
 Post
@@ -170,11 +170,11 @@ Lets rewrite the above using exists:
 
 ```elixir
 def has_comment_with_more_points_than(query, score) do
-  Ash.Query.filter(Post, exists(comments, points > ^score))
+  Ash.Query.filter(query, exists(comments, points > ^score))
 end
 
 def has_comment_tagged(query, tag) do
-  Ash.Query.filter(Post, exists(comments.tag.name == ^tag)
+  Ash.Query.filter(query, exists(comments.tag.name == ^tag)
 end
 
 Post
